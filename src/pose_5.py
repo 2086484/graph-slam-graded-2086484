@@ -87,13 +87,16 @@ def minimize_errors(graph, initial_estimate, pose_options):
     best_pose = None
     best_landmark = None
     best_error = float("inf")
+    sum_of_errors = 0
 
-    # TODO: create a list of errors (each index corresponds to a pose) and add the error of each pose to the list
-    list_of_errors = []
+    # Ground-truth poses for X(1), X(2), X(3)
+    true_poses = {
+        1: gtsam.Pose2(0.0, 0.0, 0.0),
+        2: gtsam.Pose2(2.0, 0.0, 0.0),
+        3: gtsam.Pose2(4.0, 0.0, 0.0),
+    }
 
     for pose_name, pose_5 in pose_options.items():
-        best_error_for_this_pose = float("inf")
-
         for landmark in [1, 2]:
             test_graph = gtsam.NonlinearFactorGraph(graph)
             test_estimate = gtsam.Values(initial_estimate)
@@ -104,19 +107,30 @@ def minimize_errors(graph, initial_estimate, pose_options):
             test_graph = add_landmark_measurement(test_graph, result, pose_5, landmark)
             result = optimize(test_graph, test_estimate)
 
-            error = test_graph.error(result)
+            # TODO: create a list of errors (each index corresponds to a pose) and add the error of each pose to the list
+            list_of_errors = []
 
-            if error < best_error_for_this_pose:
-                best_error_for_this_pose = error
+            for i in [1, 2, 3]:
+                estimated_pose = result.atPose2(X(i))
+                true_pose = true_poses[i]
 
-            if error < best_error:
-                best_error = error
+                dx = estimated_pose.x() - true_pose.x()
+                dy = estimated_pose.y() - true_pose.y()
+                dtheta = estimated_pose.theta() - true_pose.theta()
+
+                # Keep angle error between -pi and pi
+                dtheta = np.arctan2(np.sin(dtheta), np.cos(dtheta))
+
+                error = np.sqrt(dx**2 + dy**2 + dtheta**2)
+                list_of_errors.append(error)
+
+            # TODO: compute the sum of the errors and return it along with the best pose and landmark
+            current_sum_of_errors = sum(list_of_errors)
+
+            if current_sum_of_errors < best_error:
+                best_error = current_sum_of_errors
                 best_pose = pose_name
                 best_landmark = landmark
-
-        list_of_errors.append(best_error_for_this_pose)
-
-    # TODO: compute the sum of the errors and return it along with the best pose and landmark
-    sum_of_errors = sum(list_of_errors)
+                sum_of_errors = current_sum_of_errors
 
     return best_pose, best_landmark, sum_of_errors
